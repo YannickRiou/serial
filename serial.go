@@ -27,9 +27,7 @@ type SerialPort struct {
 	closeReqChann chan bool
 	closeAckChann chan error
 	buff          *bytes.Buffer
-	logger        *log.Logger
 	portIsOpen    bool
-	Verbose       bool
 	// openPort      func(port string, baud int) (io.ReadWriteCloser, error)
 }
 
@@ -39,16 +37,9 @@ type SerialPort struct {
 
 func New() *SerialPort {
 	// Create new file
-	file, err := os.OpenFile(fmt.Sprintf("log_serial_%d.txt", time.Now().Unix()), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalln("Failed to open log file", ":", err)
-	}
-	multi := io.MultiWriter(file, os.Stdout)
 	return &SerialPort{
-		logger:  log.New(multi, "PREFIX: ", log.Ldate|log.Ltime),
 		eol:     EOL_DEFAULT,
 		buff:    bytes.NewBuffer(make([]uint8, 256)),
-		Verbose: true,
 	}
 }
 
@@ -77,8 +68,6 @@ func (sp *SerialPort) Open(name string, baud int, timeout ...time.Duration) erro
 	// Enable threads
 	go sp.readSerialPort()
 	go sp.processSerialPort()
-	sp.logger.SetPrefix(fmt.Sprintf("[%s] ", sp.name))
-	sp.log("Serial port %s@%d open", sp.name, sp.baud)
 	return nil
 }
 
@@ -87,7 +76,6 @@ func (sp *SerialPort) Close() error {
 	if sp.portIsOpen {
 		sp.portIsOpen = false
 		close(sp.rxChar)
-		sp.log("Serial port %s closed", sp.name)
 		return sp.port.Close()
 	}
 	return nil
@@ -97,11 +85,6 @@ func (sp *SerialPort) Close() error {
 func (sp *SerialPort) Write(data []byte) (n int, err error) {
 	if sp.portIsOpen {
 		n, err = sp.port.Write(data)
-		if err != nil {
-			// Do nothing
-		} else {
-			sp.log("Tx >> %s", string(data))
-		}
 	} else {
 		err = fmt.Errorf("Serial port is not open")
 	}
@@ -112,11 +95,6 @@ func (sp *SerialPort) Write(data []byte) (n int, err error) {
 func (sp *SerialPort) Print(str string) error {
 	if sp.portIsOpen {
 		_, err := sp.port.Write([]byte(str))
-		if err != nil {
-			return err
-		} else {
-			sp.log("Tx >> %s", str)
-		}
 	} else {
 		return fmt.Errorf("Serial port is not open")
 	}
@@ -147,12 +125,9 @@ func (sp *SerialPort) SendFile(filepath string) error {
 	// Read file
 	file, err := ioutil.ReadFile(filepath)
 	if err != nil {
-		sp.log("DBG >> %s", "Invalid filepath")
 		return err
 	} else {
 		fileSize := len(file)
-		sp.log("INF >> %s", "File size is %d bytes", fileSize)
-
 		for sentBytes <= fileSize {
 			//Try sending slices of less or equal than 512 bytes at time
 			if len(file[sentBytes:]) > q {
@@ -163,7 +138,6 @@ func (sp *SerialPort) SendFile(filepath string) error {
 			// Write binaries
 			_, err := sp.port.Write(data)
 			if err != nil {
-				sp.log("DBG >> %s", "Error while sending the file")
 				return err
 			} else {
 				sentBytes += q
@@ -216,7 +190,6 @@ func (sp *SerialPort) WaitForRegexTimeout(exp string, timeout time.Duration) (st
 		//Timeout structure
 		c1 := make(chan string, 1)
 		go func() {
-			sp.log("INF >> Waiting for RegExp: \"%s\"", exp)
 			result := []string{}
 			for !timeExpired {
 				line, err := sp.ReadLine()
@@ -233,12 +206,9 @@ func (sp *SerialPort) WaitForRegexTimeout(exp string, timeout time.Duration) (st
 		}()
 		select {
 		case data := <-c1:
-			sp.log("INF >> The RegExp: \"%s\"", exp)
-			sp.log("INF >> Has been matched: \"%s\"", data)
 			return data, nil
 		case <-time.After(timeout):
 			timeExpired = true
-			sp.log("INF >> Unable to match RegExp: \"%s\"", exp)
 			return "", fmt.Errorf("Timeout expired")
 		}
 	} else {
@@ -285,7 +255,6 @@ func (sp *SerialPort) processSerialPort() {
 			switch lastRxByte {
 			case sp.eol:
 				// EOL - Print received data
-				sp.log("Rx << %s", string(append(screenBuff, lastRxByte)))
 				screenBuff = make([]byte, 0) //Clean buffer
 				break
 			default:
@@ -294,12 +263,6 @@ func (sp *SerialPort) processSerialPort() {
 		} else {
 			break
 		}
-	}
-}
-
-func (sp *SerialPort) log(format string, a ...interface{}) {
-	if sp.Verbose {
-		sp.logger.Printf(format, a...)
 	}
 }
 
