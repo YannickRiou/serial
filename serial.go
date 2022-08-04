@@ -86,7 +86,7 @@ func (sp *SerialPort) Write(data []byte) (n int, err error) {
 	} else {
 		err = fmt.Errorf("Serial port is not open")
 	}
-	return
+	return n, err
 }
 
 // This method prints data trough the serial port.
