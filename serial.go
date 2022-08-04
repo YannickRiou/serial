@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
-	"os"
 	"regexp"
 	"time"
 )
@@ -94,7 +92,7 @@ func (sp *SerialPort) Write(data []byte) (n int, err error) {
 // This method prints data trough the serial port.
 func (sp *SerialPort) Print(str string) error {
 	if sp.portIsOpen {
-		_, err := sp.port.Write([]byte(str))
+		sp.port.Write([]byte(str))
 	} else {
 		return fmt.Errorf("Serial port is not open")
 	}
